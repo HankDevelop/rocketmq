@@ -37,7 +37,7 @@ public class TopicPublishInfo {
     public void setOrderTopic(boolean orderTopic) {
         this.orderTopic = orderTopic;
     }
-
+    //Producer判断MessageQueue列表是否完整
     public boolean ok() {
         return null != this.messageQueueList && !this.messageQueueList.isEmpty();
     }
@@ -83,7 +83,7 @@ public class TopicPublishInfo {
             return selectOneMessageQueue();
         }
     }
-
+    //选择MessageQueue的方式： 递增取模
     public MessageQueue selectOneMessageQueue() {
         int index = this.sendWhichQueue.getAndIncrement();
         int pos = Math.abs(index) % this.messageQueueList.size();

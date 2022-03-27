@@ -122,11 +122,12 @@ public class BrokerOuterAPI {
         final boolean oneway,
         final int timeoutMills,
         final boolean compressed) {
-
+        //初始化一个list，用来放向每个NameServer注册的结果。
         final List<RegisterBrokerResult> registerBrokerResultList = Lists.newArrayList();
+        //NameSrv的地址列表
         List<String> nameServerAddressList = this.remotingClient.getNameServerAddressList();
         if (nameServerAddressList != null && nameServerAddressList.size() > 0) {
-
+            //K2 构建Broker注册的网络请求。可以看看有哪些关键参数。
             final RegisterBrokerRequestHeader requestHeader = new RegisterBrokerRequestHeader();
             requestHeader.setBrokerAddr(brokerAddr);
             requestHeader.setBrokerId(brokerId);
@@ -134,20 +135,23 @@ public class BrokerOuterAPI {
             requestHeader.setClusterName(clusterName);
             requestHeader.setHaServerAddr(haServerAddr);
             requestHeader.setCompressed(compressed);
-
+            //请求体
             RegisterBrokerBody requestBody = new RegisterBrokerBody();
             requestBody.setTopicConfigSerializeWrapper(topicConfigWrapper);
             requestBody.setFilterServerList(filterServerList);
             final byte[] body = requestBody.encode(compressed);
             final int bodyCrc32 = UtilAll.crc32(body);
             requestHeader.setBodyCrc32(bodyCrc32);
+            //这个东东的作用是等待向全部的Nameserver都进行了注册后再往下走。
             final CountDownLatch countDownLatch = new CountDownLatch(nameServerAddressList.size());
             for (final String namesrvAddr : nameServerAddressList) {
                 brokerOuterExecutor.execute(new Runnable() {
                     @Override
                     public void run() {
                         try {
+                            //K2 Broker真正执行注册的方法
                             RegisterBrokerResult result = registerBroker(namesrvAddr,oneway, timeoutMills,requestHeader,body);
+                            //注册完了，在本地保存下来。
                             if (result != null) {
                                 registerBrokerResultList.add(result);
                             }
@@ -163,6 +167,7 @@ public class BrokerOuterAPI {
             }
 
             try {
+                //在这里等待所有的NameSrv都注册完成了才往下走。
                 countDownLatch.await(timeoutMills, TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
             }
@@ -179,9 +184,10 @@ public class BrokerOuterAPI {
         final byte[] body
     ) throws RemotingCommandException, MQBrokerException, RemotingConnectException, RemotingSendRequestException, RemotingTimeoutException,
         InterruptedException {
+        //封装一个网络请求
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.REGISTER_BROKER, requestHeader);
         request.setBody(body);
-
+        //特殊请求 sendOneWay
         if (oneway) {
             try {
                 this.remotingClient.invokeOneway(namesrvAddr, request, timeoutMills);
@@ -190,8 +196,9 @@ public class BrokerOuterAPI {
             }
             return null;
         }
-
+        //真正发送网络请求的地方。这个remotingClient就是一个NettyClient。
         RemotingCommand response = this.remotingClient.invokeSync(namesrvAddr, request, timeoutMills);
+        //封装网络请求结果。
         assert response != null;
         switch (response.getCode()) {
             case ResponseCode.SUCCESS: {
@@ -208,7 +215,7 @@ public class BrokerOuterAPI {
             default:
                 break;
         }
-
+        //请求不成功就直接抛出异常。
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 

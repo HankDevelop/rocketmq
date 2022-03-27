@@ -109,7 +109,7 @@ public class ScheduleMessageService extends ConfigManager {
 
         return storeTimestamp + 1000;
     }
-
+    //K2 延迟消息服务的启动方法
     public void start() {
         if (started.compareAndSet(false, true)) {
             this.timer = new Timer("ScheduleMessageTimerThread", true);
@@ -122,10 +122,11 @@ public class ScheduleMessageService extends ConfigManager {
                 }
 
                 if (timeDelay != null) {
+                    //定时执行延迟消息处理任务
                     this.timer.schedule(new DeliverDelayedMessageTimerTask(level, offset), FIRST_DELAY_TIME);
                 }
             }
-
+            //每隔10秒，将延迟消息持久化到硬盘中。
             this.timer.scheduleAtFixedRate(new TimerTask() {
 
                 @Override
@@ -159,7 +160,7 @@ public class ScheduleMessageService extends ConfigManager {
     public String encode() {
         return this.encode(false);
     }
-
+    //加载延迟级别
     public boolean load() {
         boolean result = super.load();
         result = result && this.parseDelayLevel();
@@ -220,7 +221,7 @@ public class ScheduleMessageService extends ConfigManager {
 
         return true;
     }
-
+    //K2 延迟消息: 处理任务
     class DeliverDelayedMessageTimerTask extends TimerTask {
         private final int delayLevel;
         private final long offset;
@@ -258,8 +259,9 @@ public class ScheduleMessageService extends ConfigManager {
 
             return result;
         }
-
+        //K2 延迟消息：处理任务的具体逻辑。
         public void executeOnTimeup() {
+            //拿到延迟级别对应的队列
             ConsumeQueue cq =
                 ScheduleMessageService.this.defaultMessageStore.findConsumeQueue(TopicValidator.RMQ_SYS_SCHEDULE_TOPIC,
                     delayLevel2QueueId(delayLevel));
@@ -273,6 +275,7 @@ public class ScheduleMessageService extends ConfigManager {
                         long nextOffset = offset;
                         int i = 0;
                         ConsumeQueueExt.CqExtUnit cqExtUnit = new ConsumeQueueExt.CqExtUnit();
+                        //遍历每个延迟队列的消息
                         for (; i < bufferCQ.getSize(); i += ConsumeQueue.CQ_STORE_UNIT_SIZE) {
                             long offsetPy = bufferCQ.getByteBuffer().getLong();
                             int sizePy = bufferCQ.getByteBuffer().getInt();
@@ -296,7 +299,7 @@ public class ScheduleMessageService extends ConfigManager {
                             nextOffset = offset + (i / ConsumeQueue.CQ_STORE_UNIT_SIZE);
 
                             long countdown = deliverTimestamp - now;
-
+                            //把每个延迟消息封装成一个MessageExt
                             if (countdown <= 0) {
                                 MessageExt msgExt =
                                     ScheduleMessageService.this.defaultMessageStore.lookMessageByOffset(
@@ -310,6 +313,7 @@ public class ScheduleMessageService extends ConfigManager {
                                                     msgInner.getTopic(), msgInner);
                                             continue;
                                         }
+                                        //将延迟消息写入正常消息队列，这样就能被消费者正常消费了。
                                         PutMessageResult putMessageResult =
                                             ScheduleMessageService.this.writeMessageStore
                                                 .putMessage(msgInner);

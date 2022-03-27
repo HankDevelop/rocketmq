@@ -50,6 +50,8 @@ public class LatencyFaultToleranceImpl implements LatencyFaultTolerance<String> 
 
     @Override
     public boolean isAvailable(final String name) {
+        //这个faultItemTable维护的是一个曾经发送失败的Broker列表
+        //在发送消息时如果发送失败，就会加入这个列表。
         final FaultItem faultItem = this.faultItemTable.get(name);
         if (faultItem != null) {
             return faultItem.isAvailable();

@@ -44,13 +44,13 @@ public class Producer {
          * }
          * </pre>
          */
-
+        producer.setNamesrvAddr("127.0.0.1:9876");
         /*
          * Launch the instance.
          */
         producer.start();
 
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 2; i++) {
             try {
 
                 /*
@@ -60,7 +60,8 @@ public class Producer {
                     "TagA" /* Tag */,
                     ("Hello RocketMQ " + i).getBytes(RemotingHelper.DEFAULT_CHARSET) /* Message body */
                 );
-
+                //messageDelayLevel=1s 5s 10s 30s 1m 2m 3m 4m 5m 6m 7m 8m 9m 10m 20m 30m 1h 2h
+                msg.setDelayTimeLevel(2);
                 /*
                  * Call send message to deliver message to one of brokers.
                  */

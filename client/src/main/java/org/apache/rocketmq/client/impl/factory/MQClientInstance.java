@@ -91,12 +91,14 @@ public class MQClientInstance {
     private final int instanceIndex;
     private final String clientId;
     private final long bootTimestamp = System.currentTimeMillis();
+    //同一个消费者可以属于多个消费者组，所以在启动客户端实例时，会用一个Map来保存当前实例的消费者组。这个map的value就是当前实例。
     private final ConcurrentMap<String/* group */, MQProducerInner> producerTable = new ConcurrentHashMap<String, MQProducerInner>();
     private final ConcurrentMap<String/* group */, MQConsumerInner> consumerTable = new ConcurrentHashMap<String, MQConsumerInner>();
     private final ConcurrentMap<String/* group */, MQAdminExtInner> adminExtTable = new ConcurrentHashMap<String, MQAdminExtInner>();
     private final NettyClientConfig nettyClientConfig;
     private final MQClientAPIImpl mQClientAPIImpl;
     private final MQAdminImpl mQAdminImpl;
+    //Topic的路由信息
     private final ConcurrentMap<String/* Topic */, TopicRouteData> topicRouteTable = new ConcurrentHashMap<String, TopicRouteData>();
     private final Lock lockNamesrv = new ReentrantLock();
     private final Lock lockHeartbeat = new ReentrantLock();
@@ -220,7 +222,7 @@ public class MQClientInstance {
 
         return mqList;
     }
-
+    //K1 消费者核心启动过程。难得有点注释了。
     public void start() throws MQClientException {
 
         synchronized (this) {
@@ -238,6 +240,7 @@ public class MQClientInstance {
                     // Start pull service
                     this.pullMessageService.start();
                     // Start rebalance service
+                    //K2 客户端负载均衡
                     this.rebalanceService.start();
                     // Start push service
                     this.defaultMQProducer.getDefaultMQProducerImpl().start(false);
@@ -967,7 +970,7 @@ public class MQClientInstance {
     public void rebalanceImmediately() {
         this.rebalanceService.wakeup();
     }
-
+    //K2 客户端负载均衡 针对当前消费者所属的每一个消费者组
     public void doRebalance() {
         for (Map.Entry<String, MQConsumerInner> entry : this.consumerTable.entrySet()) {
             MQConsumerInner impl = entry.getValue();

@@ -15,18 +15,26 @@
  * limitations under the License.
  */
 package org.apache.rocketmq.remoting.netty;
-
+//K1 Netty服务的核心配置信息
 public class NettyServerConfig implements Cloneable {
+    //端口号，默认是8888，但是启动时被默认覆盖成了9876
     private int listenPort = 8888;
+    //Netty工作线程数
     private int serverWorkerThreads = 8;
+    //Netty的public线程池的线程数，默认是0
     private int serverCallbackExecutorThreads = 0;
+    //Netty的IO线程池线程数量。主要负责处理网络请求，解析请求包，再转发到各个业务线程池。最后返回结果
     private int serverSelectorThreads = 3;
+    //Broker端的两个配置参数
     private int serverOnewaySemaphoreValue = 256;
     private int serverAsyncSemaphoreValue = 64;
+    //网络连接最大空闲时间
     private int serverChannelMaxIdleTimeSeconds = 120;
-
+    //网络Socket发送缓冲区大小
     private int serverSocketSndBufSize = NettySystemConfig.socketSndbufSize;
+    //接收端缓存区大小
     private int serverSocketRcvBufSize = NettySystemConfig.socketRcvbufSize;
+    //是否启用Epoll模型
     private boolean serverPooledByteBufAllocatorEnable = true;
 
     /**

@@ -208,7 +208,7 @@ public class CommitLog {
                     break;
                 }
             }
-
+            //K2 文件正常恢复的关键是更新MappedFileQueue的flushedWhere和CommittedWhere两个指针
             processOffset += mappedFileOffset;
             this.mappedFileQueue.setFlushedWhere(processOffset);
             this.mappedFileQueue.setCommittedWhere(processOffset);
@@ -437,7 +437,7 @@ public class CommitLog {
                     break;
                 }
             }
-
+            //K2 非正常恢复会在更新指针的时候也重建索引
             if (index < 0) {
                 index = 0;
                 mappedFile = mappedFiles.get(index);
@@ -776,7 +776,7 @@ public class CommitLog {
         });
 
     }
-
+    //K2 CommitLog写入的过程
     public PutMessageResult putMessage(final MessageExtBrokerInner msg) {
         // Set the storage time
         msg.setStoreTimestamp(System.currentTimeMillis());
@@ -826,8 +826,9 @@ public class CommitLog {
         long elapsedTimeInLock = 0;
 
         MappedFile unlockMappedFile = null;
+        //mappedFile 零拷贝实现
         MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile();
-
+        //线程锁 注意使用锁的这种方式
         putMessageLock.lock(); //spin or ReentrantLock ,depending on store config
         try {
             long beginLockTimestamp = this.defaultMessageStore.getSystemClock().now();
@@ -845,11 +846,13 @@ public class CommitLog {
                 beginTimeInLock = 0;
                 return new PutMessageResult(PutMessageStatus.CREATE_MAPEDFILE_FAILED, null);
             }
-
+            //直接以Append的方式写入文件
             result = mappedFile.appendMessage(msg, this.appendMessageCallback);
+            //文件写入的结果
             switch (result.getStatus()) {
                 case PUT_OK:
                     break;
+                //文件写满了，就创建一个新文件，重写消息
                 case END_OF_FILE:
                     unlockMappedFile = mappedFile;
                     // Create a new file, re-write the message
@@ -893,8 +896,9 @@ public class CommitLog {
         // Statistics
         storeStatsService.getSinglePutMessageTopicTimesTotal(msg.getTopic()).incrementAndGet();
         storeStatsService.getSinglePutMessageTopicSizeTotal(topic).addAndGet(result.getWroteBytes());
-
+        //文件刷盘
         handleDiskFlush(result, putMessageResult, msg);
+        //主从同步
         handleHA(result, putMessageResult, msg);
 
         return putMessageResult;
@@ -916,6 +920,7 @@ public class CommitLog {
             }
         }
         // Asynchronous flush
+        //这里可以看到，如果打开了对外内存，就需要先将对外内存写入到文件映射中，再存盘
         else {
             if (!this.defaultMessageStore.getMessageStoreConfig().isTransientStorePoolEnable()) {
                 flushCommitLogService.wakeup();
@@ -946,16 +951,18 @@ public class CommitLog {
         return CompletableFuture.completedFuture(PutMessageStatus.PUT_OK);
     }
 
-
+    //K2 处理数据刷盘
     public void handleDiskFlush(AppendMessageResult result, PutMessageResult putMessageResult, MessageExt messageExt) {
-        // Synchronization flush
+        // Synchronization flush 同步刷盘
         if (FlushDiskType.SYNC_FLUSH == this.defaultMessageStore.getMessageStoreConfig().getFlushDiskType()) {
             final GroupCommitService service = (GroupCommitService) this.flushCommitLogService;
             if (messageExt.isWaitStoreMsgOK()) {
+                //构建一个GroupCommitRequest，交给GroupCommitService处理。
                 GroupCommitRequest request = new GroupCommitRequest(result.getWroteOffset() + result.getWroteBytes());
                 service.putRequest(request);
                 CompletableFuture<PutMessageStatus> flushOkFuture = request.future();
                 PutMessageStatus flushStatus = null;
+                //同步等待文件刷新
                 try {
                     flushStatus = flushOkFuture.get(this.defaultMessageStore.getMessageStoreConfig().getSyncFlushTimeout(),
                             TimeUnit.MILLISECONDS);
@@ -971,7 +978,8 @@ public class CommitLog {
                 service.wakeup();
             }
         }
-        // Asynchronous flush
+        // Asynchronous flush 异步刷盘
+        //异步刷盘是把消息映射到MappedFile后，单独唤醒一个服务来进行刷盘
         else {
             if (!this.defaultMessageStore.getMessageStoreConfig().isTransientStorePoolEnable()) {
                 flushCommitLogService.wakeup();
@@ -980,7 +988,7 @@ public class CommitLog {
             }
         }
     }
-
+    //这个处理消息主从同步，会需要引入Raft协议。因为这个协议涉及到很多功能模块，会由诸葛老师后续进行讲解。
     public void handleHA(AppendMessageResult result, PutMessageResult putMessageResult, MessageExt messageExt) {
         if (BrokerRole.SYNC_MASTER == this.defaultMessageStore.getMessageStoreConfig().getBrokerRole()) {
             HAService service = this.defaultMessageStore.getHaService();
@@ -1229,7 +1237,7 @@ public class CommitLog {
     abstract class FlushCommitLogService extends ServiceThread {
         protected static final int RETRY_TIMES_OVER = 10;
     }
-
+    //负责将对外内存数据写入到文件映射中。
     class CommitRealTimeService extends FlushCommitLogService {
 
         private long lastCommitTimestamp = 0;
@@ -1239,6 +1247,7 @@ public class CommitLog {
             return CommitRealTimeService.class.getSimpleName();
         }
 
+        //每隔一定时间执行一次刷盘，最大间隔是10S
         @Override
         public void run() {
             CommitLog.log.info(this.getServiceName() + " service started");
@@ -1282,7 +1291,7 @@ public class CommitLog {
             CommitLog.log.info(this.getServiceName() + " service end");
         }
     }
-
+    //每隔500毫秒负责将文件映射写入到硬盘
     class FlushRealTimeService extends FlushCommitLogService {
         private long lastFlushTimestamp = 0;
         private long printTimes = 0;
@@ -1413,13 +1422,14 @@ public class CommitLog {
             this.requestsWrite = this.requestsRead;
             this.requestsRead = tmp;
         }
-
+        //K2 最终执行同步刷盘策略的地方
         private void doCommit() {
             synchronized (this.requestsRead) {
                 if (!this.requestsRead.isEmpty()) {
                     for (GroupCommitRequest req : this.requestsRead) {
                         // There may be a message in the next file, so a maximum of
                         // two times the flush
+                        //消息刷盘
                         boolean flushOK = false;
                         for (int i = 0; i < 2 && !flushOK; i++) {
                             flushOK = CommitLog.this.mappedFileQueue.getFlushedWhere() >= req.getNextOffset();
@@ -1515,7 +1525,7 @@ public class CommitLog {
         public ByteBuffer getMsgStoreItemMemory() {
             return msgStoreItemMemory;
         }
-
+        //K2 实际写入CommitLog的方法。
         public AppendMessageResult doAppend(final long fileFromOffset, final ByteBuffer byteBuffer, final int maxBlank,
             final MessageExtBrokerInner msgInner) {
             // STORETIMESTAMP + STOREHOSTADDRESS + OFFSET <br>

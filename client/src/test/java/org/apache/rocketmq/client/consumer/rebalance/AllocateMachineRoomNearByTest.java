@@ -55,7 +55,7 @@ public class AllocateMachineRoomNearByTest {
     @Test
     public void test1() {
         testWhenIDCSizeEquals(5,20,10, false);
-        testWhenIDCSizeEquals(5,20,20, false);
+        testWhenIDCSizeEquals(5,20,20, true);
         testWhenIDCSizeEquals(5,20,30, false);
         testWhenIDCSizeEquals(5,20,0, false );
     }

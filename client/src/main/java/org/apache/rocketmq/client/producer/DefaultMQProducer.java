@@ -936,7 +936,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     public void setAsyncSenderExecutor(final ExecutorService asyncSenderExecutor) {
         this.defaultMQProducerImpl.setAsyncSenderExecutor(asyncSenderExecutor);
     }
-
+    //批量消息打包的方法
     private MessageBatch batch(Collection<Message> msgs) throws MQClientException {
         MessageBatch msgBatch;
         try {

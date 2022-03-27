@@ -219,6 +219,7 @@ public abstract class RebalanceImpl {
             for (final Map.Entry<String, SubscriptionData> entry : subTable.entrySet()) {
                 final String topic = entry.getKey();
                 try {
+                    //K2 客户端负载：真正进行负载都是根据主题来进行的。
                     this.rebalanceByTopic(topic, isOrder);
                 } catch (Throwable e) {
                     if (!topic.startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX)) {
@@ -234,9 +235,10 @@ public abstract class RebalanceImpl {
     public ConcurrentMap<String, SubscriptionData> getSubscriptionInner() {
         return subscriptionInner;
     }
-
+    //K2 客户端负载：对Topic进行负载的过程
     private void rebalanceByTopic(final String topic, final boolean isOrder) {
         switch (messageModel) {
+            //广播模式，不需要进行负载。每个消费者都要消费。只需要更新负载信息。
             case BROADCASTING: {
                 Set<MessageQueue> mqSet = this.topicSubscribeInfoTable.get(topic);
                 if (mqSet != null) {
@@ -254,8 +256,11 @@ public abstract class RebalanceImpl {
                 }
                 break;
             }
+            //K2 客户端负载：集群模式负载方法
             case CLUSTERING: {
+                //订阅的主题
                 Set<MessageQueue> mqSet = this.topicSubscribeInfoTable.get(topic);
+                //客户端ID
                 List<String> cidAll = this.mQClientFactory.findConsumerIdList(topic, consumerGroup);
                 if (null == mqSet) {
                     if (!topic.startsWith(MixAll.RETRY_GROUP_TOPIC_PREFIX)) {
@@ -270,14 +275,15 @@ public abstract class RebalanceImpl {
                 if (mqSet != null && cidAll != null) {
                     List<MessageQueue> mqAll = new ArrayList<MessageQueue>();
                     mqAll.addAll(mqSet);
-
+                    //排序后才能保证消费者负载策略相对稳定。
                     Collections.sort(mqAll);
                     Collections.sort(cidAll);
-
+                    //MessageQueue的负载策略，有五种实现类
                     AllocateMessageQueueStrategy strategy = this.allocateMessageQueueStrategy;
 
                     List<MessageQueue> allocateResult = null;
                     try {
+                        //按负载策略进行分配，返回当前消费者实际订阅的MessageQueue集合。
                         allocateResult = strategy.allocate(
                             this.consumerGroup,
                             this.mQClientFactory.getClientId(),
