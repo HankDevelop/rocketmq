@@ -548,25 +548,35 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         final SendCallback sendCallback,
         final long timeout
     ) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+        //判断生产者是否正常运行
         this.makeSureStateOK();
+        //验证topic和body没有问题
         Validators.checkMessage(msg, this.defaultMQProducer);
+        //调用编号：用于下面打印日志，标记为同一次发消息
         final long invokeID = random.nextLong();
+        //开始发消息时间
         long beginTimestampFirst = System.currentTimeMillis();
         long beginTimestampPrev = beginTimestampFirst;
         long endTimestamp = beginTimestampFirst;
-        //生产者获取Topic的公开信息，注意下有哪些信息。重点关注怎么选择MessageQueue的。
+        //生产者获取Topic的公开信息，注意下有哪些信息。重点关注怎么选择MessageQueue的。 从nameserver更新topic的路由信息，这里比较复杂
         TopicPublishInfo topicPublishInfo = this.tryToFindTopicPublishInfo(msg.getTopic());
+        //已经获取到了topic路由信息
         if (topicPublishInfo != null && topicPublishInfo.ok()) {
             boolean callTimeout = false;
+            // 最后选择消息要发送到的队列
             MessageQueue mq = null;
             Exception exception = null;
+            // 最后一次发送结果
             SendResult sendResult = null;
+            //设置失败重试次数 同步1次+重试次数 其他都是1次
             int timesTotal = communicationMode == CommunicationMode.SYNC ? 1 + this.defaultMQProducer.getRetryTimesWhenSendFailed() : 1;
+            // 第几次发送
             int times = 0;
+            // 存储每次发送消息选择的broker名
             String[] brokersSent = new String[timesTotal];
             for (; times < timesTotal; times++) {
                 String lastBrokerName = null == mq ? null : mq.getBrokerName();
-                //K2 Producer计算把消息发到哪个MessageQueue中。
+                //K2 Producer计算把消息发到哪个MessageQueue中。 //选择其中一个queue
                 MessageQueue mqSelected = this.selectOneMessageQueue(topicPublishInfo, lastBrokerName);
                 if (mqSelected != null) {
                     mq = mqSelected;
@@ -583,9 +593,10 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                             callTimeout = true;
                             break;
                         }
-                        //实际发送消息的方法
+                        //发送消息到选中的队列
                         sendResult = this.sendKernelImpl(msg, mq, communicationMode, sendCallback, topicPublishInfo, timeout - costTime);
                         endTimestamp = System.currentTimeMillis();
+                        //更新Broker可用性信息<容错> 上面到准备工作（获取topic和queue相关）时间过长，那么会让该broker休息一段时间（不可用）
                         this.updateFaultItem(mq.getBrokerName(), endTimestamp - beginTimestampPrev, false);
                         switch (communicationMode) {
                             case ASYNC:
@@ -690,7 +701,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     }
     //找路由表的过程都是先从本地缓存找，本地缓存没有，就去NameServer上申请。
     private TopicPublishInfo tryToFindTopicPublishInfo(final String topic) {
+        //先从本地缓存里取
         TopicPublishInfo topicPublishInfo = this.topicPublishInfoTable.get(topic);
+        //如果缓存没有先根据要发送的topic从nameserver上获取路由信息
         if (null == topicPublishInfo || !topicPublishInfo.ok()) {
             this.topicPublishInfoTable.putIfAbsent(topic, new TopicPublishInfo());
             //Producer向NameServer获取更新Topic的路由信息。
@@ -702,6 +715,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         if (topicPublishInfo.isHaveTopicRouterInfo() || topicPublishInfo.ok()) {
             return topicPublishInfo;
         } else {
+            //如果还是没有使用默认的topic获取路由信息，并在broker上创建
             this.mQClientFactory.updateTopicRouteInfoFromNameServer(topic, true, this.defaultMQProducer);
             topicPublishInfo = this.topicPublishInfoTable.get(topic);
             return topicPublishInfo;

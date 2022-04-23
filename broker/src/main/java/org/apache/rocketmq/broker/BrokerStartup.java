@@ -181,6 +181,7 @@ public class BrokerStartup {
                     break;
             }
             //K2 这里可以看到，判断是否基于Dledger技术来管理主从同步和CommitLog的条件就是brokerId设置为-1
+            //why isEnableDLegerCommitLog() true时setBrokerId(-1)
             if (messageStoreConfig.isEnableDLegerCommitLog()) {
                 brokerConfig.setBrokerId(-1);
             }
