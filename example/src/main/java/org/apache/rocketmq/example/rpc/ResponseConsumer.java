@@ -40,10 +40,12 @@ public class ResponseConsumer {
 
         // create a producer to send reply message
         DefaultMQProducer replyProducer = new DefaultMQProducer(producerGroup);
+        replyProducer.setNamesrvAddr("192.168.172.104:9876");
         replyProducer.start();
 
         // create consumer
         DefaultMQPushConsumer consumer = new DefaultMQPushConsumer(consumerGroup);
+        consumer.setNamesrvAddr("192.168.172.104:9876");
         consumer.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_LAST_OFFSET);
 
         // recommend client configs

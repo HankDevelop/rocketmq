@@ -29,6 +29,7 @@ public class RequestProducer {
         long ttl = 3000;
 
         DefaultMQProducer producer = new DefaultMQProducer(producerGroup);
+        producer.setNamesrvAddr("192.168.172.104:9876");
         producer.start();
 
         try {

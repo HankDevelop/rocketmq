@@ -16,23 +16,28 @@
  */
 package org.apache.rocketmq.example.quickstart;
 
-import java.util.List;
-
-import org.apache.rocketmq.client.consumer.AllocateMessageQueueStrategy;
 import org.apache.rocketmq.client.consumer.DefaultMQPushConsumer;
 import org.apache.rocketmq.client.consumer.listener.ConsumeConcurrentlyContext;
 import org.apache.rocketmq.client.consumer.listener.ConsumeConcurrentlyStatus;
 import org.apache.rocketmq.client.consumer.listener.MessageListenerConcurrently;
 import org.apache.rocketmq.client.exception.MQClientException;
+import org.apache.rocketmq.client.log.ClientLogger;
 import org.apache.rocketmq.common.consumer.ConsumeFromWhere;
 import org.apache.rocketmq.common.message.MessageExt;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.List;
 
 /**
  * This example shows how to subscribe and consume messages using providing {@link DefaultMQPushConsumer}.
  */
 public class Consumer {
 
+    static Logger logger = LoggerFactory.getLogger(Consumer.class);
+
     public static void main(String[] args) throws InterruptedException, MQClientException {
+        System.setProperty(ClientLogger.CLIENT_LOG_USESLF4J,"true");
 
         /*
          * Instantiate with specified consumer group name.
@@ -80,5 +85,6 @@ public class Consumer {
         consumer.start();
 
         System.out.printf("Consumer Started.%n");
+        logger.info("Consumer Started");
     }
 }
