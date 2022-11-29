@@ -16,11 +16,7 @@
  */
 package org.apache.rocketmq.broker.longpolling;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
+import com.alibaba.fastjson.JSON;
 import org.apache.rocketmq.broker.BrokerController;
 import org.apache.rocketmq.common.ServiceThread;
 import org.apache.rocketmq.common.SystemClock;
@@ -28,6 +24,12 @@ import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.store.ConsumeQueueExt;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 public class PullRequestHoldService extends ServiceThread {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
@@ -68,6 +70,7 @@ public class PullRequestHoldService extends ServiceThread {
         log.info("{} service started", this.getServiceName());
         while (!this.isStopped()) {
             try {
+                log.info("{} wait start", this.getServiceName());
                 //如果开启了长轮询，等待5秒后再去查
                 if (this.brokerController.getBrokerConfig().isLongPollingEnable()) {
                     this.waitForRunning(5 * 1000);
@@ -75,7 +78,7 @@ public class PullRequestHoldService extends ServiceThread {
                     //没有开启长轮询，等待1秒后再去查。
                     this.waitForRunning(this.brokerController.getBrokerConfig().getShortPollingTimeMills());
                 }
-
+                log.info("{} wait end", this.getServiceName());
                 long beginLockTimestamp = this.systemClock.now();
                 //检查请求对象
                 this.checkHoldRequest();
@@ -105,6 +108,7 @@ public class PullRequestHoldService extends ServiceThread {
                 //从CommitLog中检查是否有新的消息。
                 final long offset = this.brokerController.getMessageStore().getMaxOffsetInQueue(topic, queueId);
                 try {
+                    log.info("notify for {}", JSON.toJSONString(this.pullRequestTable.get(key).getPullRequestList()));
                     //通知消息到达
                     this.notifyMessageArriving(topic, queueId, offset);
                 } catch (Throwable e) {
